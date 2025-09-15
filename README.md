@@ -36,7 +36,7 @@ This stage was also a chance to practice **clean, well-structured SQL** and set 
 
 This structure made the insights both engaging and easy to follow.  
  
-👉 [Live dashboard here](https://app.powerbi.com/view?r=eyJrIjoiNTU1NDMyNzktZDI5Mi00ZTJmLTg3MmQtZDk2ZGE5ODdlNjY5IiwidCI6IjE1YzIyNjQ2LTU5M2YtNDMxOC04NTYzLTMwZmU5ZmRmMDdjZSJ9)
+👉 [Live dashboard here](https://app.powerbi.com/view?r=eyJrIjoiMjMyYjY3N2YtZGY1NC00YTk0LTllMzMtOGNhMzdlNGVlMTA3IiwidCI6IjE1YzIyNjQ2LTU5M2YtNDMxOC04NTYzLTMwZmU5ZmRmMDdjZSJ9)
 
 ## Tools & Skills  
 - **SQL Server** - database design, EDA with joins, CTEs, window functions, optimized BI-ready views.  
