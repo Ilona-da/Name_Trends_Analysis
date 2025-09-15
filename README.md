@@ -1,4 +1,4 @@
-# Baby Names Analysis (USA, 1980 - 2009)
+# Baby Names Analysis (USA, 1980-2009)
 
 ## Overview  
 
