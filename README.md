@@ -27,12 +27,12 @@ This stage was also a chance to practice **clean, well-structured SQL** and set 
 - Imported SQL views into Power BI and built a relational data model.  
 - Defined custom measures (DAX) and filters.  
 - Structured the dashboard as a **data story** with six sections:  
-  1. **Overview** - key KPIs and trends,  
-  2. **Popularity & Gender** - distribution, unique names, top male/female/androgynous names,  
-  3. **Pop Culture Names** - influence of celebrities and events,  
-  4. **Name Length** - shortest, longest, and average length analysis,  
-  5. **First Letter** - distribution by starting letters,  
-  6. **Check Your Name** - interactive exploration for any name.  
+  **Overview** - key KPIs and trends,  
+  **Popularity & Gender** - distribution, unique names, top male/female/androgynous names,  
+  **Pop Culture Names** - influence of celebrities and events,  
+  **Name Length** - shortest, longest, and average length analysis,  
+  **First Letter** - distribution by starting letters,  
+  **Check Your Name** - interactive exploration for any name.  
 
 This structure made the insights both engaging and easy to follow.  
  
