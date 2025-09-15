@@ -250,6 +250,57 @@ FROM genders_count
 WHERE genders = 2
 ORDER BY num_babies DESC;
 
+-- Weird names showed: Michael, Christopher, Matthew, Joshua, Jessica, Daniel, David, Ashley, James & Andrew
+
+SELECT Gender, Name
+FROM names
+WHERE Name = 'Michael' AND Gender = 'F'
+-- 458 female Michaels
+-- WHERE Name = 'Jessica' AND Gender = 'M'
+-- 163 male Jessicas
+-- WHERE Name = 'Christopher' AND Gender = 'F'
+--321 female Christophers
+-- WHERE Name = 'Matthew' AND Gender = 'F'
+-- 252 female Matthews
+-- WHERE Name = 'Joshua' AND Gender = 'F'
+-- 265 female Joshuas
+
+-- Lets find better way...
+WITH name_gender_stats AS (
+   SELECT Name, Gender, SUM(Births) AS births_per_gender
+   FROM names
+   GROUP BY Name, Gender
+),
+name_totals AS (
+   SELECT Name, SUM(births_per_gender) AS total_births
+   FROM name_gender_stats
+   GROUP BY Name
+),
+name_with_ratios AS (
+    SELECT 
+        ngs.Name,
+        SUM(CASE WHEN ngs.Gender = 'M' THEN ngs.births_per_gender ELSE 0 END) AS male_births,
+        SUM(CASE WHEN ngs.Gender = 'F' THEN ngs.births_per_gender ELSE 0 END) AS female_births,
+        nt.total_births,
+        1.0 * SUM(CASE WHEN ngs.Gender = 'M' THEN ngs.births_per_gender ELSE 0 END) / nt.total_births AS pct_male,
+        1.0 * SUM(CASE WHEN ngs.Gender = 'F' THEN ngs.births_per_gender ELSE 0 END) / nt.total_births AS pct_female
+    FROM name_gender_stats ngs
+    JOIN name_totals nt ON ngs.Name = nt.Name
+    GROUP BY ngs.Name, nt.total_births
+)
+SELECT TOP 10 
+   Name,
+   male_births,
+   female_births,
+   total_births,
+   pct_male,
+   pct_female
+FROM name_with_ratios
+WHERE pct_male BETWEEN 0.1 AND 0.9   -- more or less than 10%
+  AND pct_female BETWEEN 0.1 AND 0.9
+ORDER BY total_births DESC;
+-- So now we have Jordan, Taylor, Alexis, Morgan, Angel, Jamie, Casey, Riley, Jayden, Dakota
+
 -- 2) What was the length of the shortest and longest names, and the most popular short and long names?
 
 SELECT DISTINCT Name, LEN(Name) AS name_length
@@ -296,7 +347,7 @@ ON nbs.State = cns.State
 ORDER BY custom_name_percent ASC;
 
 -- ============================
--- 4) OBJECTIVE: Names and popculture
+-- OBJECTIVE 5: Names and popculture
 -- ============================
 
 -- 1) Check popularity of certain names (Neo, Forrest, Britney etc.)
@@ -308,16 +359,28 @@ GROUP BY Year, Name
 ORDER BY Year;
 
 -- ============================
--- 5) OBJECTIVE: Create View to import to POWER BI
+-- OBJECTIVE 6: Create Views to import to POWER BI
 -- ============================
 
-CREATE OR ALTER VIEW v_names_dataset AS 
+-- Dimension table: dim_name
+
+CREATE OR ALTER VIEW v_dim_name AS 
 
 WITH 
-genders_count AS (
-	SELECT Name, COUNT(DISTINCT Gender) AS genders, SUM(Births) AS num_babies
-	FROM names
-	GROUP BY Name
+name_gender_stats AS (
+   SELECT Name, Gender, SUM(Births) AS births_per_gender
+   FROM names
+   GROUP BY Name, Gender
+),
+genders_agg AS (
+    SELECT 
+        Name,
+        COUNT(DISTINCT Gender) AS genders,
+        SUM(births_per_gender) AS total_babies,
+        MIN(births_per_gender) AS min_gender_births,
+        MAX(births_per_gender) AS max_gender_births
+    FROM name_gender_stats
+    GROUP BY Name
 ),
 first_appearance AS (
 	SELECT 
@@ -334,63 +397,81 @@ name_trendy_flag AS (
 	GROUP BY Name
 )
 
-SELECT n.State, 
-		r.Region,
-		n.Year, 
-		CASE 
-			WHEN Year BETWEEN 1980 AND 1989 THEN '80s'
-			WHEN Year BETWEEN 1990 AND 1999 THEN '90s'
-			WHEN Year BETWEEN 2000 AND 2009 THEN '00s'
-			ELSE 'None'
-		END AS decade,
-		CASE 
-			WHEN Year BETWEEN 1980 AND 1989 THEN 1
-			WHEN Year BETWEEN 1990 AND 1999 THEN 2
-			WHEN Year BETWEEN 2000 AND 2009 THEN 3
-		ELSE 0
-		END AS decade_order,
-		first_appearance_year, 
-		n.Name,
-		LEFT(n.Name, 1) AS name_first_letter,
-		LEN(n.Name) AS name_length,
-		CASE 
-			WHEN LEN(n.Name) <= 4 THEN 'short'
-			WHEN LEN(n.Name) BETWEEN 5 AND 7 THEN 'medium'
-			ELSE 'long'
-		END AS name_type,
-		CASE 
-			WHEN n.Gender = 'M' THEN 'Boy'
-			WHEN n.Gender = 'F' THEN 'Girl'
-		ELSE 'Unknown' END AS gender_flag,
-		CASE 
-			WHEN gc.genders > 1 THEN 1
-			ELSE 0
-		END AS is_androgynous,
-		CASE 
-			WHEN pct_after_2000 >= 0.8 THEN 1
-			ELSE 0
-		END AS is_trendy,
-		CASE 
-			WHEN gc.num_babies < 1000 THEN 1
-		ELSE 0
-		END AS is_rare,
-		CASE 
-			WHEN pct_after_2000 <= 0.2 THEN 1
-		ELSE 0
-		END AS is_declining,
-		CASE 
-			WHEN gc.num_babies < 100 THEN 'very rare'
-			WHEN gc.num_babies < 1000 THEN 'rare'
-			WHEN gc.num_babies < 10000 THEN 'common'
+SELECT	
+   ROW_NUMBER() OVER(ORDER BY n.Name, n.Gender) AS name_id,
+	n.Name,
+	first_appearance_year, 
+	LEFT(n.Name, 1) AS first_letter,
+	LEN(n.Name) AS name_length,
+
+	CASE 
+		WHEN LEN(n.Name) <= 4 THEN 'short'
+		WHEN LEN(n.Name) BETWEEN 5 AND 7 THEN 'medium'
+		ELSE 'long'
+	END AS length_type,
+
+	n.Gender AS gender_code,
+	CASE 
+		WHEN n.Gender = 'M' THEN 'Male'
+		WHEN n.Gender = 'F' THEN 'Female'
+		ELSE 'Unknown' 
+	END AS gender_label,
+	CASE 
+		WHEN ga.genders > 1 
+		   AND ga.min_gender_births > 500 
+		   AND ga.min_gender_births * 1.0 / ga.total_babies >= 0.20
+		THEN 1 ELSE 0
+	END AS is_androgynous,
+
+	CASE WHEN ntf.pct_after_2000 >= 0.8 THEN 1 ELSE 0 END AS is_trendy,
+	CASE WHEN ntf.pct_after_2000 <= 0.2 AND ga.total_babies > 1000 THEN 1 ELSE 0 END AS is_declining,
+
+	CASE 
+		WHEN ga.total_babies < 100 THEN 'very rare'
+		WHEN ga.total_babies < 1000 THEN 'rare'
+		WHEN ga.total_babies < 10000 THEN 'common'
 		ELSE 'very common'
-		END AS name_popularity_bin,
-		n.Births
+	END AS popularity
+
+FROM (SELECT DISTINCT Name, Gender FROM names) n
+LEFT JOIN genders_agg ga ON n.Name = ga.Name
+LEFT JOIN first_appearance fa ON n.Name = fa.Name
+LEFT JOIN name_trendy_flag ntf ON n.Name = ntf.Name;
+
+-- Dimension table: dim_state
+
+CREATE OR ALTER VIEW v_dim_state AS 
+
+WITH clean_regions AS (
+	SELECT State, 
+		CASE 
+			WHEN Region = 'New England' THEN 'New_England' ELSE Region
+		END AS clean_region_name
+	FROM regions
+	UNION
+	SELECT 'MI' AS State, 'Midwest' AS clean_region_name
+)
+
+SELECT
+	ROW_NUMBER() OVER(ORDER BY State) AS state_id,  
+	State AS state_code,
+	clean_region_name AS region
+FROM clean_regions;
+
+-- Dimension table: calendar (to be created in Power BI)
+
+-- Fact table: fact_births
+
+CREATE OR ALTER VIEW v_fact_births AS
+	
+SELECT 
+   dn.name_id,
+   ds.state_id, 
+	DATEFROMPARTS(n.Year, 1, 1) AS birth_date_year,
+	n.Births
 FROM names n
-LEFT JOIN genders_count gc
-ON n.Name = gc.Name
-LEFT JOIN first_appearance fa
-ON n.Name = fa.Name
-LEFT JOIN name_trendy_flag ntf
-ON n.Name = ntf.Name
-LEFT JOIN regions r ON n.State = r.State;
- 
+LEFT JOIN v_dim_name dn
+    ON n.Name = dn.Name
+	AND n.Gender = dn.gender_code
+LEFT JOIN v_dim_state ds
+    ON n.State = ds.state_code;
